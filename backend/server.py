@@ -168,6 +168,7 @@ class CaseFile(BaseModel):
     sources: List[str] = []
     infiltration_count: int = 1
     created_at: str = Field(default_factory=now_iso)
+    last_freshness_check: Optional[str] = None
 
 
 class GenerateRequest(BaseModel):
@@ -976,6 +977,295 @@ async def admin_queue(
     _check_admin(x_admin_token)
     cursor = db.queue.find({}, {"_id": 0}).sort("votes", -1).limit(limit)
     return {"items": await cursor.to_list(limit)}
+
+
+# ---------- Freshness Radar ----------
+FRESHNESS_STALE_DAYS = 7
+FRESHNESS_SYSTEM = """You update the "Latest" section of an existing fandom case file. Your job is honesty, not filler.
+
+RULES:
+- Output ONLY valid JSON, no preamble.
+- Return AT MOST 3 items. Include only ACTUAL, verifiable developments (new releases, tour announcements, awards, viral moments, controversies, cast changes, season/expansion drops, breakups, deaths).
+- If nothing significant has happened, return an empty items array AND set quiet_note to an in-voice line like "Nothing major this week — fandom is between drops."
+- Each item: {"date": "YYYY-MM", "headline": "...", "link": "url or null"}.
+"""
+
+
+async def _llm_freshness(entity_name: str, entity_type: str, current_latest: List[dict]) -> dict:
+    known = json.dumps(current_latest[:5]) if current_latest else "[]"
+    prompt = (
+        f'Subject: "{entity_name}" ({entity_type}). '
+        f"Compare against the currently listed Latest items: {known}. "
+        "Report any GENUINELY new significant developments. Do not repeat what's already listed. "
+        "If nothing has meaningfully changed, honestly say so.\n\n"
+        'Return exactly: {"items": [{"date":"YYYY-MM","headline":"...","link":"url or null"}], "quiet_note": "line or null"}\n\nJSON only.'
+    )
+    if LLM_PROVIDER == "openrouter":
+        if not OPENROUTER_API_KEY:
+            raise HTTPException(500, "OPENROUTER_API_KEY not set")
+        async with httpx.AsyncClient(timeout=60.0) as c:
+            r = await c.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+                json={
+                    "model": LLM_MODEL,
+                    "messages": [
+                        {"role": "system", "content": FRESHNESS_SYSTEM},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+        if r.status_code != 200:
+            raise HTTPException(502, "freshness compile failed")
+        raw = r.json()["choices"][0]["message"]["content"]
+    else:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"freshness-{uuid.uuid4()}",
+            system_message=FRESHNESS_SYSTEM,
+        ).with_model(LLM_PROVIDER, LLM_MODEL)
+        resp = await chat.send_message(UserMessage(text=prompt))
+        raw = resp if isinstance(resp, str) else str(resp)
+    return _extract_json(raw)
+
+
+@api_router.get("/admin/freshness/scan")
+async def admin_freshness_scan(
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+    days: int = FRESHNESS_STALE_DAYS,
+):
+    """List active entities whose latest section may be stale (age > days AND velocity > 0)."""
+    _check_admin(x_admin_token)
+    cutoff_created = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    # active = has hits in the last `days` window
+    cutoff_hits = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    active_pipeline = [
+        {"$match": {"ts": {"$gte": cutoff_hits}}},
+        {"$group": {"_id": "$slug", "hits": {"$sum": 1}}},
+    ]
+    active = {a["_id"]: a["hits"] for a in await db.hits.aggregate(active_pipeline).to_list(500)}
+
+    stale = []
+    async for e in db.entities.find({}, {"_id": 0}):
+        slug = e["slug"]
+        last_check = e.get("last_freshness_check") or e.get("created_at", "")
+        if last_check > cutoff_created:
+            continue
+        velocity = active.get(slug, 0)
+        if velocity == 0:
+            continue
+        stale.append(
+            {
+                "slug": slug,
+                "name": e["name"],
+                "entity_type": e.get("entity_type", ""),
+                "velocity": velocity,
+                "last_check": last_check,
+                "latest_count": len(e.get("latest", [])),
+            }
+        )
+    stale.sort(key=lambda x: x["velocity"], reverse=True)
+    return {"items": stale, "cutoff_days": days}
+
+
+@api_router.post("/admin/freshness/refresh/{slug}")
+async def admin_freshness_refresh(
+    slug: str,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+):
+    _check_admin(x_admin_token)
+    ent = await db.entities.find_one({"slug": slug}, {"_id": 0})
+    if not ent:
+        raise HTTPException(404, "Entity not found")
+    data = await _llm_freshness(ent["name"], ent.get("entity_type", ""), ent.get("latest", []))
+    new_items = data.get("items", []) or []
+    quiet = data.get("quiet_note")
+    # Merge (append new headlines that aren't already there) — dedupe on headline text
+    existing_headlines = {i.get("headline") for i in ent.get("latest", [])}
+    merged = ent.get("latest", []).copy()
+    added = []
+    for item in new_items:
+        if not item.get("headline"):
+            continue
+        if item["headline"] in existing_headlines:
+            continue
+        merged.insert(0, item)
+        added.append(item)
+    # Cap at 6 items so it stays lean
+    merged = merged[:6]
+    update = {
+        "latest": merged,
+        "latest_quiet_note": quiet if not merged else None,
+        "last_freshness_check": now_iso(),
+    }
+    await db.entities.update_one({"slug": slug}, {"$set": update})
+    return {
+        "slug": slug,
+        "added": added,
+        "quiet_note": quiet,
+        "checked_at": update["last_freshness_check"],
+    }
+
+
+# ---------- Content Health ----------
+class BulkApprove(BaseModel):
+    slugs: List[str]
+    auto_generate: bool = False
+
+
+class BulkPrune(BaseModel):
+    slugs: List[str]
+
+
+class RejectQueue(BaseModel):
+    keys: List[str]
+
+
+@api_router.get("/admin/stats")
+async def admin_stats(
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+):
+    _check_admin(x_admin_token)
+    total_entities = await db.entities.count_documents({})
+    total_queued = await db.queue.count_documents({})
+    total_approved_keys = await db.approved.count_documents({})
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    recent_compiles = await db.entities.count_documents({"created_at": {"$gte": week_ago}})
+    recent_hits = await db.hits.count_documents({"ts": {"$gte": week_ago}})
+    # zero traffic candidates: age > 7d AND no hits in last 7d
+    active_pipeline = [
+        {"$match": {"ts": {"$gte": week_ago}}},
+        {"$group": {"_id": "$slug"}},
+    ]
+    active_slugs = {a["_id"] for a in await db.hits.aggregate(active_pipeline).to_list(1000)}
+    zero_traffic = 0
+    stale_active = 0
+    async for e in db.entities.find({"created_at": {"$lt": week_ago}}, {"_id": 0, "slug": 1, "last_freshness_check": 1}):
+        if e["slug"] not in active_slugs:
+            zero_traffic += 1
+        else:
+            last_check = e.get("last_freshness_check") or ""
+            if last_check < week_ago:
+                stale_active += 1
+    return {
+        "total_entities": total_entities,
+        "total_queued": total_queued,
+        "total_approved_keys": total_approved_keys,
+        "recent_compiles_7d": recent_compiles,
+        "recent_hits_7d": recent_hits,
+        "zero_traffic_count": zero_traffic,
+        "stale_active_count": stale_active,
+    }
+
+
+@api_router.get("/admin/entities")
+async def admin_entities(
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+    filter: str = "all",
+    limit: int = 100,
+):
+    _check_admin(x_admin_token)
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    if filter == "zero_traffic":
+        active_pipeline = [
+            {"$match": {"ts": {"$gte": week_ago}}},
+            {"$group": {"_id": "$slug"}},
+        ]
+        active_slugs = {a["_id"] for a in await db.hits.aggregate(active_pipeline).to_list(1000)}
+        cursor = db.entities.find(
+            {"created_at": {"$lt": week_ago}}, {"_id": 0}
+        ).sort("infiltration_count", 1).limit(limit * 3)
+        docs = await cursor.to_list(limit * 3)
+        docs = [d for d in docs if d["slug"] not in active_slugs][:limit]
+    else:
+        cursor = db.entities.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+        docs = await cursor.to_list(limit)
+
+    return {
+        "items": [
+            {
+                "slug": d["slug"],
+                "name": d["name"],
+                "entity_type": d.get("entity_type", ""),
+                "created_at": d.get("created_at"),
+                "last_freshness_check": d.get("last_freshness_check"),
+                "infiltration_count": d.get("infiltration_count", 0),
+                "tier": d.get("larpability", {}).get("tier", "B"),
+            }
+            for d in docs
+        ]
+    }
+
+
+@api_router.post("/admin/approve/bulk")
+async def admin_approve_bulk(
+    req: BulkApprove,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+):
+    _check_admin(x_admin_token)
+    approved, generated = [], []
+    for name in req.slugs:
+        slug = slugify(name)
+        keys = set(variant_keys(name) + variant_keys(slug))
+        for k in keys:
+            if not k:
+                continue
+            await db.approved.update_one(
+                {"key": k},
+                {"$set": {"key": k, "slug": slug, "name": name}},
+                upsert=True,
+            )
+        await db.queue.delete_many({"key": {"$in": list(keys)}})
+        approved.append(slug)
+        if req.auto_generate:
+            try:
+                case = await compile_case_file(name)
+                doc = case.model_dump()
+                await db.entities.update_one({"slug": doc["slug"]}, {"$set": doc}, upsert=True)
+                await register_aliases(doc["slug"], name, doc["name"])
+                generated.append(doc["slug"])
+            except Exception as e:
+                logger.error(f"bulk auto_generate failed for {name}: {e}")
+    return {"approved": approved, "generated": generated}
+
+
+@api_router.post("/admin/queue/reject")
+async def admin_queue_reject(
+    req: RejectQueue,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+):
+    _check_admin(x_admin_token)
+    if not req.keys:
+        return {"deleted": 0}
+    result = await db.queue.delete_many({"key": {"$in": req.keys}})
+    return {"deleted": result.deleted_count}
+
+
+@api_router.post("/admin/prune")
+async def admin_prune(
+    req: BulkPrune,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+):
+    _check_admin(x_admin_token)
+    if not req.slugs:
+        return {"deleted": 0}
+    ent_del = await db.entities.delete_many({"slug": {"$in": req.slugs}})
+    await db.aliases.delete_many({"canonical_slug": {"$in": req.slugs}})
+    await db.sniff.delete_many({"slug": {"$in": req.slugs}})
+    await db.quizzes.delete_many({"slug": {"$in": req.slugs}})
+    await db.hits.delete_many({"slug": {"$in": req.slugs}})
+    return {"deleted": ent_del.deleted_count}
+
+
+@api_router.get("/admin/ping")
+async def admin_ping(
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+):
+    _check_admin(x_admin_token)
+    return {"ok": True}
 
 
 # ---------- Wire up ----------
