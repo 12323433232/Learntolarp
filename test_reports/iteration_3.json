@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 3 verification for learntolarp.com — Handle Prompt, Sniff The Bot, LARP Test Quiz, and Trending Velocity. Backend: 12/12 new pytest cases pass (total suite unchanged/passing). Verified: (1) POST /entities/generate accepts first_larped_by custom handle (Nirvana → 'Test-Agent'); handle 'admin' (blocklist) and 'a' (too short) are rejected and fall back to LLM-generated Analyst-XX. (2) GET /entities/{slug}/sniff returns 4 questions × 6 archetypes (casual_fan, superfan, new_fan, ragebaiter, fake_fan, veteran) each with 4 answers; second call cached (<3s); unknown slug 404s. (3) GET /entities/{slug}/quiz returns 10 questions each with scenario + 4 options, correct_index NOT exposed to client; cached on second call. (4) POST /entities/{slug}/quiz/grade with [0]*10 for Radiohead returned score=3/10, tier=caught; correct_index distribution across the 10 questions was [0,2,3,0,2,0,1,2,2,1] — proves options are shuffled per question. Verdict tiers (convincing/suspicious/caught) map correctly by percentage. (5) GET /entities?sort=trending&limit=5 returns items with velocity field: [(radiohead,20),(nirvana,4),(the-beatles,1)] and pads with lifetime when thin. Frontend: HandlePromptModal appears when visiting an uncompiled slug, has data-testid handle-input / handle-submit-btn / handle-skip-btn, submit label becomes 'Compile as Playwright-Bot', Skip navigates to queued state. Entity page (/entity/radiohead) shows field-kit-ctas with open-sniff-bot-btn and open-quiz-btn plus 'First larped by // Agent-R05' in stats. Sniff modal opens fast (cached), reveals answers via 'Ask another question' (1→2 exchanges), 6 archetype buttons render, guessing reveals result, streak updates in ltl-sniff-streak localStorage (0 after wrong guess — correct behavior), restart button starts a new round. LARP Quiz modal opens, one scenario at a time, Next disabled until an option picked, all 10 answered → verdict card with big label 'GETTING CAUGHT', score 3/10, expandable Review Your Answers, Copy Verdict + Try Again buttons present. Landing trending grid card shows '22 hits this week' when velocity > 0.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "landing", "issues": ["Two 404 asset errors persist in console (favicon/manifest) — carried from iteration 2, non-blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 995 lines — approaching the 700-line split threshold. Consider splitting Sniff/Quiz logic into a separate module (/app/backend/minigames.py) for maintainability.",
+    "HANDLE_BLOCKLIST uses substring match (`if bad in lower`). This over-blocks legitimate handles containing safe substrings, e.g. 'admin' inside 'admiral'. Acceptable given the rough-by-design intent but note it in docs.",
+    "quiz correct_index shuffling in compile_quiz uses random.shuffle — deterministic ordering is not guaranteed across restarts, but since shuffle happens at storage time before the DB insert, that's fine.",
+    "Trending velocity pipeline runs an aggregate on db.hits every list call — for higher traffic add an index on {ts:1, slug:1} to keep sub-100ms latency.",
+    "record_hit is called on every GET /entities/{slug} and every successful generate — good; no rate-limit on hit inflation from the same client though (potential trend gaming).",
+    "SniffBotGame: streak is only stored via localStorage — expected/intentional per spec (local streak only).",
+    "HandlePromptModal frontend regex allows spaces but backend sanitize_handle strips them; client replaces spaces with dashes before submit — consistent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "ADMIN_TOKEN=learntolarp-admin-dev-token-change-me (unchanged, not exercised in iter3 tests but present in test file).",
+  "seed_data_creation": "None. Used pre-existing compiled entities (radiohead, the-beatles, nirvana) which already had cached sniff/quiz data. Trending velocity test hit the-radiohead slug 3 additional times to seed velocity.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test suite lives in /app/backend/tests/{backend_test.py, test_iteration3.py}. Run with `cd /app && python -m pytest backend/tests/ -v -o 'addopts='` (pytest.ini uses xdist which is fine; the -o override disables it if needed). All iteration 1-3 features covered. Sniff/Quiz endpoints trigger LLM (10-30s) on first call per new entity slug — subsequent calls are cached. Radiohead / The Beatles / Nirvana all have cached sniff+quiz. Handle blocklist is substring-based; keep test handles clean of blocklist substrings when testing custom handles.",
+  "rca of the issue": "N/A — no bugs found."
+}
