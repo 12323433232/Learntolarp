@@ -1,0 +1,34 @@
+{
+  "summary": "First-finish smoke pass for learntolarp.com. Backend: all 6 target endpoints pass (root, list, generate cached+idempotent, get by slug, 404, queue new/already_compiled, queue list). LLM-generated Radiohead case file has full expected shape (tier A, 5 facts, 5 quotes, 3 briefing lines, 3 starter tiers, 7 cross_refs, culture + perception with all sub-fields). Frontend: landing page renders hero, header search, suggestion chips, category filters, trending grid. Hero compile flow navigates to /entity/radiohead?q=Radiohead, renders full case file with LarpabilityHero (A-TIER badge visible), briefing TL;DR, fact rows, culture must/never callouts, quotes, perception gauge (94% cult following bar), export cheat sheet modal opens with Download PNG + Copy Text.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "GET /api/ -> {service:learntolarp,status:ok}",
+    "GET /api/entities?sort=trending&limit=12 -> items list (Radiohead cached)",
+    "POST /api/entities/generate {query:'Radiohead'} idempotent: cached, infiltration_count 1->2, full CaseFile shape valid (tier A, difficulty hard, 3 briefing, 5 facts, 5 quotes, culture with all 6 sub-keys, perception with fans_pct/critics_pct/fans_say/critics_say, starters safe/medium/risky, 7 cross_refs)",
+    "GET /api/entities/radiohead -> 200 cached CaseFile",
+    "GET /api/entities/nonexistent-slug-xyz -> 404 'Case file not compiled yet'",
+    "POST /api/entities/queue {name:'Some Random Thing'} -> {status:queued,slug:some-random-thing}",
+    "POST /api/entities/queue {name:'Radiohead'} -> {status:already_compiled,slug:radiohead}",
+    "GET /api/queue -> lists queued item with votes",
+    "Landing page loads with hero search, compile button, 8 suggestion chips, 5 category filters, trending grid, queue list",
+    "Hero search -> Compile navigates to /entity/<slug>?q=<name>",
+    "Entity page renders: entity-hero, entity-title (RADIOHEAD), entity-type-badge (GROUP), larpability-score-badge (A-TIER), briefing-tldr-card, fact-section (fact-item rows + fact-source-link), culture-section (must/never/danger/slang-tags/lore), quotes-section (quote-item with speaker + reason badge), perception-section (perception-gauge, fans-say-card, critics-say-card), latest-news-section, starters-section (safe/medium/risky cards), cross-ref-grid with cross-ref-redacted-card, sources-block, mission-note, infiltration-count-stat",
+    "Export cheat sheet modal opens with Download PNG and Copy Text buttons",
+    "Copy starter button present (copy-starter-btn)",
+    "Queue generation button present (queue-generation-btn)"
+  ],
+  "failed": [
+    {
+      "area": "frontend testid naming (minor)",
+      "issue": "Some data-testid names in review request don't match implementation. Actual: larpability-score-badge (not larpability-tier-badge), briefing-tldr-card + briefing-text (not briefing-banner), starters-section (not conversation-starters), latest-news-section (not latest-news), cross-ref-grid (not cross-references). Export modal has no explicit data-testid on the dialog wrapper.",
+      "evidence": "Playwright query for [data-testid='larpability-tier-badge'] MISSING but [data-testid='larpability-score-badge'] renders 'A-TIER' correctly. All sections visually render as expected.",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "Optional: align data-testid naming with review request (add larpability-tier-badge, briefing-banner, conversation-starters, latest-news, cross-references, export-modal) OR update /app/design_guidelines.json to reflect actual testids for future test agents. Functionality is unaffected."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "95%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}
