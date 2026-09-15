@@ -1,0 +1,236 @@
+{
+  "brand": {
+    "name": "learntolarp.com",
+    "tagline": "Infiltrate any fandom in 30 seconds",
+    "positioning": "AI-generated intelligence briefing tool disguised as a tongue-in-cheek infiltration guide. 70% real utility, 30% joke/gimmick. Designed for ages 13-17 with a Discord/gaming culture register."
+  },
+  "typography": {
+    "display": {
+      "family": "Barlow Condensed, Bebas Neue, sans-serif",
+      "usage": "Entity titles, Larpability score, main hero headlines, section tier badges",
+      "style": "Uppercase, font-extrabold, tracking-tight",
+      "google_font_import": "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Work+Sans:wght@400;500;600;700&display=swap"
+    },
+    "body": {
+      "family": "Work Sans, sans-serif",
+      "usage": "Main briefing text, culture notes, conversation starters, public perception copy",
+      "style": "Font-normal to font-medium, leading-relaxed, text-slate-900"
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Metadata, timestamps, citation tags, form-field labels, redacted state text, status counters",
+      "style": "Uppercase, text-xs or text-sm, tracking-wider"
+    },
+    "forbidden_fonts": [
+      "Inter",
+      "Space Grotesk",
+      "Comic Sans",
+      "Roboto"
+    ]
+  },
+  "colors": {
+    "background": {
+      "main": "#F7F4EE",
+      "paper_tint": "#FAF8F5",
+      "card_surface": "#FFFFFF",
+      "muted_surface": "#EFECE6",
+      "dark_surface": "#0F172A"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "muted": "#64748B",
+      "inverse": "#F8FAFC"
+    },
+    "accent": {
+      "stamp_red": "#DC2626",
+      "stamp_red_hover": "#B91C1C",
+      "stamp_red_bg": "#FEF2F2",
+      "gaming_indigo": "#4F46E5",
+      "gaming_indigo_light": "#EEF2FF",
+      "verified_emerald": "#059669",
+      "warning_amber": "#D97706"
+    },
+    "borders": {
+      "default": "#E2DDD4",
+      "subtle": "#EFECE6",
+      "dark": "#1E293B",
+      "accent_red": "#FCA5A5"
+    },
+    "tier_colors": {
+      "S_TIER": {
+        "badge_bg": "#FEF2F2",
+        "text": "#DC2626",
+        "border": "#FCA5A5"
+      },
+      "A_TIER": {
+        "badge_bg": "#EEF2FF",
+        "text": "#4F46E5",
+        "border": "#C7D2FE"
+      },
+      "B_TIER": {
+        "badge_bg": "#ECFDF5",
+        "text": "#059669",
+        "border": "#6EE7B7"
+      },
+      "C_TIER": {
+        "badge_bg": "#FFFBEB",
+        "text": "#D97706",
+        "border": "#FDE68A"
+      }
+    }
+  },
+  "layout_and_spacing": {
+    "max_width": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "hero_padding": "py-10 md:py-16",
+    "section_gap": "space-y-12 md:space-y-16",
+    "card_padding": "p-5 md:p-8",
+    "desktop_columns": "grid grid-cols-1 lg:grid-cols-12 gap-8",
+    "sidebar_span": "lg:col-span-4",
+    "main_content_span": "lg:col-span-8"
+  },
+  "structural_section_designs": {
+    "1_hero_and_larpability_score": {
+      "concept": "Iconic gaming-tier focal point + intelligence file header. The score is the ONE bold visual moment.",
+      "layout": "Flex/Grid split header. Left side: Title, entity type badge, trending signal, 1-line hook. Right side: Giant Larpability Score stamp badge with rank letter (S/A/B/C) and difficulty tag.",
+      "styling": "Card background #FFFFFF with hard 2px border #0F172A, subtle bottom-right shadow-md offset, bold red stamp badge for S-tier/critical score.",
+      "data_testids": [
+        "entity-title",
+        "entity-type-badge",
+        "larpability-score-badge",
+        "infiltration-count-stat"
+      ]
+    },
+    "2_five_second_briefing": {
+      "concept": "Instant catch-up quote box for quick skimming before entering a Discord call.",
+      "layout": "Full-width banner with left thick 4px stamp-red edge accent.",
+      "styling": "Background #FEF2F2 with text #0F172A, font-medium, leading-relaxed, labeled with '5-SECOND BRIEFING // TL;DR'.",
+      "data_testids": [
+        "briefing-tldr-card",
+        "briefing-text"
+      ]
+    },
+    "3_know_this_fact": {
+      "concept": "Form-field / Database record look (Verifiable, sourced objective facts).",
+      "layout": "Grid of key-value data fields with subtle horizontal border divisions and source links.",
+      "styling": "Monospace uppercase labels ('[DATA_FIELD_01]', '[SOURCE_REF]'), crisp white containers with #E2DDD4 inner borders, verified checkmark badges.",
+      "data_testids": [
+        "fact-section",
+        "fact-item",
+        "fact-source-link"
+      ]
+    },
+    "4_know_this_culture": {
+      "concept": "Discord chat / community lore notebook (Heavier visual weight than FACT - this is the differentiator).",
+      "layout": "Asymmetrical callout cards with quote bubbles, insider jargon badges, and meme etiquette warnings.",
+      "styling": "Slightly tinted background #EEF2FF or #FAF8F5 with subtle border #C7D2FE, high visual emphasis on insider slang highlights ('MUST SAY', 'NEVER SAY').",
+      "data_testids": [
+        "culture-section",
+        "culture-lore-card",
+        "culture-slang-tag"
+      ]
+    },
+    "5_infiltration_briefing_quotes": {
+      "concept": "Audio transcript style (3-5 real cited quotes with reason for context).",
+      "layout": "Vertical transcript stream with speaker avatars/monograms, timestamps, quote blocks, and context tag.",
+      "styling": "Monospace headers, subtle waveform/mic icon indicator, dark slate left border for speaker blocks.",
+      "data_testids": [
+        "quotes-section",
+        "quote-item",
+        "quote-speaker",
+        "quote-reason-badge"
+      ]
+    },
+    "6_public_perception": {
+      "concept": "Dual-meter visual gauge comparing 'Fans Say' vs 'Critics Say'.",
+      "layout": "Split comparison container with progress bars and side-by-side sentiment summary cards.",
+      "styling": "Emerald bar for fans ('CULT FOLLOWING'), Amber/Red bar for critics ('GATEKEEPERS').",
+      "data_testids": [
+        "perception-section",
+        "perception-gauge",
+        "fans-say-card",
+        "critics-say-card"
+      ]
+    },
+    "7_latest_news": {
+      "concept": "Curated recent activity feed or honest 'quiet on the front' zero-state.",
+      "layout": "News card list with date tags, link icons, or radar search empty state card.",
+      "styling": "Clean card items with hover highlight #FAF8F5 and external link indicator.",
+      "data_testids": [
+        "latest-news-section",
+        "news-item",
+        "news-empty-state"
+      ]
+    },
+    "8_conversation_starters": {
+      "concept": "3-Tier interactive difficulty stack: Safe, Medium, Risky.",
+      "layout": "Stacked collapsible/accordion or card grid categorized by risk tier, with a 'Copy to Clipboard' quick action button for each starter.",
+      "styling": "Safe (Green badge/border), Medium (Amber badge/border), Risky (Red stamp badge/border).",
+      "data_testids": [
+        "starters-section",
+        "starter-card-safe",
+        "starter-card-medium",
+        "starter-card-risky",
+        "copy-starter-btn"
+      ]
+    },
+    "9_cross_references": {
+      "concept": "Linked entities network with active cards & redacted/locked states for ungenerated entities.",
+      "layout": "Grid of entity pills/cards. Ungenerated items are redacted ([REDACTED - CLICK TO QUEUE]).",
+      "styling": "Active items: interactive link cards with arrow. Ungenerated items: dark slate bar with redacted black bars, clicking opens/queues generator.",
+      "data_testids": [
+        "cross-ref-grid",
+        "cross-ref-active-card",
+        "cross-ref-redacted-card",
+        "queue-generation-btn"
+      ]
+    },
+    "10_export_cheat_sheet": {
+      "concept": "Viral mechanic: Modal and card to generate PNG image + copyable text cheat sheet for Discord/Twitter sharing.",
+      "layout": "Sticky CTA bar or prominent action button opening a high-density compact cheat sheet card preview.",
+      "styling": "High-contrast card frame ready for html2canvas / PNG export, button with download icon and copy text action.",
+      "data_testids": [
+        "export-cheat-sheet-btn",
+        "cheat-sheet-modal",
+        "download-png-btn",
+        "copy-cheat-text-btn"
+      ]
+    },
+    "11_landing_page": {
+      "concept": "High-energy search portal with instant autocomplete & trending/recently-infiltrated entities grid.",
+      "layout": "Hero search box at top with category pills (Anime, Gaming, Music, Pop Culture, Web3, Internet Lore) + bento grid of trending entity cards.",
+      "styling": "Big bold search input with keyboard shortcut hint ('Press / to search'), animated 'Generating Case File...' modal when searching a new entity.",
+      "data_testids": [
+        "hero-search-input",
+        "category-filter-pill",
+        "trending-entity-card",
+        "generating-casefile-modal"
+      ]
+    }
+  },
+  "anti_patterns_to_avoid": [
+    "Do NOT use Inter or Space Grotesk for headings",
+    "Do NOT use ALL CAPS decorative labels on every card",
+    "Do NOT use 'WORD — fragment' eyebrow text with spaced em-dashes",
+    "Do NOT join metadata with middle-dots ('A · B · C')",
+    "Do NOT put arrows (→) on every single button",
+    "Do NOT use uniform hover-lift on every card — make interactions feel specific",
+    "Do NOT use dark mode neon glow or heavy militaristic stencil fonts",
+    "Do NOT use emoji characters as UI icons",
+    "Do NOT use fully transparent header backgrounds that obscure text on scroll"
+  ],
+  "accessibility_and_code": {
+    "tech_stack": "React (JavaScript .js/.jsx files), Tailwind CSS, Lucide React Icons, Sonner for toasts",
+    "color_contrast": "All body text minimum 4.5:1 against #F7F4EE and #FFFFFF backgrounds. Primary text #0F172A.",
+    "keyboard_navigation": "Focus rings must use outline-2 outline-indigo-600 offset-2",
+    "reduced_motion": "Wrap non-essential animations with motion-reduce:transition-none"
+  },
+  "instructions_to_main_agent": [
+    "Ensure all components use .js / .jsx file extensions.",
+    "Ensure all interactive elements and data fields include explicit data-testid attributes listed in guidelines.",
+    "Implement both Landing Page route ('/') and Entity Page route ('/entity/:id' or search result).",
+    "Make sure the 10 core entity sections look visually and structurally distinct from each other as specified.",
+    "Integrate Sonner for toast notifications when copying conversation starters or cheat sheets.",
+    "Provide a smooth initial search experience with mock AI generator state when generating a brand new case file."
+  ]
+}
