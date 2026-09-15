@@ -40,7 +40,7 @@ const CrossReferences = ({ refs = [], onQueue }) => {
               <li key={r.slug}>
                 <Link
                   to={`/entity/${r.slug}`}
-                  className="group flex items-center justify-between gap-2 bg-white border border-[color:var(--line)] px-3 py-2 hover:border-[color:var(--ink)] transition-colors"
+                  className="group flex items-center justify-between gap-2 bg-[color:var(--card)] border border-[color:var(--line)] px-3 py-2 hover:border-[color:var(--ink)] transition-colors"
                   data-testid="cross-ref-active-card"
                 >
                   <span className="font-display font-bold uppercase truncate">

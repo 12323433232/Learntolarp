@@ -1,65 +1,42 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, TrendingUp, ArrowUpRight, Sparkles } from "lucide-react";
+import { TrendingUp, ArrowUpRight, Sparkles, Hourglass } from "lucide-react";
+import SearchBar from "@/components/SearchBar";
 import { listEntities, fetchQueue, slugify } from "@/lib/api";
 
 const CATEGORIES = [
   { key: "all", label: "ALL" },
-  { key: "person", label: "PEOPLE" },
-  { key: "group", label: "BANDS/GROUPS" },
+  { key: "artist", label: "ARTISTS" },
+  { key: "band", label: "BANDS" },
   { key: "franchise", label: "FRANCHISES" },
-  { key: "era", label: "ERAS/TRENDS" },
+  { key: "show", label: "SHOWS" },
+  { key: "aesthetic", label: "AESTHETICS" },
+  { key: "game", label: "GAMES" },
+  { key: "sport", label: "SPORTS" },
 ];
 
 const TIER_STYLES = {
   S: "bg-[color:var(--stamp-bg)] text-[color:var(--stamp)] border-[color:var(--stamp)]",
   A: "bg-[color:var(--indigo-bg)] text-[color:var(--indigo)] border-[color:var(--indigo-line)]",
-  B: "bg-[color:var(--emerald-bg)] text-[color:var(--emerald)] border-emerald-200",
-  C: "bg-[color:var(--amber-bg)] text-[color:var(--amber)] border-amber-200",
+  B: "bg-[color:var(--emerald-bg)] text-[color:var(--emerald)] border-emerald-300",
+  C: "bg-[color:var(--amber-bg)] text-[color:var(--amber)] border-amber-300",
 };
 
 const SUGGESTIONS = [
-  "Radiohead",
-  "Taylor Swift",
-  "Genshin Impact",
-  "Chappell Roan",
-  "Arcane",
-  "Formula 1",
-  "MF DOOM",
-  "Attack on Titan",
+  "Radiohead", "Taylor Swift", "Genshin Impact", "Chappell Roan",
+  "Arcane", "Formula 1", "Cottagecore", "Y2K",
 ];
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [trending, setTrending] = useState([]);
   const [queue, setQueue] = useState([]);
 
   useEffect(() => {
-    listEntities("trending", 12)
-      .then((d) => setTrending(d.items || []))
-      .catch(() => setTrending([]));
-    fetchQueue()
-      .then((d) => setQueue(d.items || []))
-      .catch(() => setQueue([]));
-
-    const handler = (e) => {
-      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
-        e.preventDefault();
-        document.getElementById("hero-search")?.focus();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    listEntities("trending", 12).then((d) => setTrending(d.items || [])).catch(() => {});
+    fetchQueue().then((d) => setQueue(d.items || [])).catch(() => {});
   }, []);
-
-  const submit = (e) => {
-    e?.preventDefault();
-    const v = q.trim();
-    if (!v) return;
-    navigate(`/entity/${slugify(v)}?q=${encodeURIComponent(v)}`);
-  };
 
   const visible = cat === "all" ? trending : trending.filter((t) => t.entity_type === cat);
 
@@ -77,46 +54,21 @@ const LandingPage = () => {
             <span className="text-[color:var(--stamp)]">Skip the deep dive.</span>
           </h1>
           <p className="mt-6 text-lg md:text-xl text-[color:var(--ink-mid)] max-w-2xl leading-relaxed">
-            Search any band, person, franchise or fandom. We compile a case file
-            good enough that no one clocks you're new — real facts, real quotes,
-            real fandom rules.
+            Search any band, artist, franchise, aesthetic, era — anything a
+            fandom forms around. We compile a case file good enough that no one
+            clocks you're new.
           </p>
         </div>
 
-        {/* SEARCH BOX */}
-        <form
-          onSubmit={submit}
-          className="mt-10 relative max-w-3xl"
-          data-testid="hero-search-form"
-        >
-          <div className="flex items-stretch border-2 border-[color:var(--ink)] bg-white shadow-[6px_6px_0_0_rgba(15,23,42,1)]">
-            <div className="flex items-center px-4 border-r border-[color:var(--line)] font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)] hidden sm:flex">
-              QUERY //
-            </div>
-            <input
-              id="hero-search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="type any name and hit enter…"
-              data-testid="hero-search-input"
-              className="flex-1 px-4 py-5 text-lg md:text-xl font-medium bg-transparent focus:outline-none placeholder:text-[color:var(--ink-mute)]"
-            />
-            <button
-              type="submit"
-              data-testid="hero-search-submit"
-              className="px-5 md:px-8 bg-[color:var(--stamp)] hover:bg-[color:var(--stamp-hover)] text-white font-display font-black text-lg uppercase tracking-wide flex items-center gap-2 transition-colors"
-            >
-              <Search size={18} strokeWidth={3} />
-              <span className="hidden sm:inline">Compile</span>
-            </button>
-          </div>
+        <div className="mt-10 max-w-3xl">
+          <SearchBar size="lg" autoFocusHotkey testIdPrefix="hero" />
           <div className="mt-3 flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)]">
-            <kbd className="px-1.5 py-0.5 border border-[color:var(--line)] bg-white">/</kbd>
+            <kbd className="px-1.5 py-0.5 border border-[color:var(--line)] bg-[color:var(--card)]">/</kbd>
             <span>to focus</span>
             <span className="mx-2 opacity-40">|</span>
             <span>press enter to compile</span>
           </div>
-        </form>
+        </div>
 
         {/* SUGGESTIONS */}
         <div className="mt-6 flex flex-wrap gap-2 max-w-3xl" data-testid="suggestions-row">
@@ -127,7 +79,7 @@ const LandingPage = () => {
             <button
               key={s}
               onClick={() => navigate(`/entity/${slugify(s)}?q=${encodeURIComponent(s)}`)}
-              className="px-3 py-1 font-mono text-xs bg-white border border-[color:var(--line)] hover:border-[color:var(--ink)] hover:bg-[color:var(--paper-muted)] transition-colors"
+              className="px-3 py-1 font-mono text-xs bg-[color:var(--card)] border border-[color:var(--line)] hover:border-[color:var(--ink)] hover:bg-[color:var(--paper-muted)] transition-colors"
               data-testid="suggestion-chip"
             >
               {s}
@@ -136,9 +88,9 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* TRENDING GRID */}
+      {/* TRENDING */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="flex items-end justify-between mb-6 border-b border-[color:var(--ink)] pb-3">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-6 border-b border-[color:var(--ink)] pb-3">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)]">
               // recently infiltrated
@@ -148,7 +100,7 @@ const LandingPage = () => {
               What everyone's catching up on
             </h2>
           </div>
-          <div className="hidden md:flex gap-1" data-testid="category-filters">
+          <div className="flex flex-wrap gap-1" data-testid="category-filters">
             {CATEGORIES.map((c) => (
               <button
                 key={c.key}
@@ -156,8 +108,8 @@ const LandingPage = () => {
                 data-testid={`category-filter-${c.key}`}
                 className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest border transition-colors ${
                   cat === c.key
-                    ? "bg-[color:var(--ink)] text-white border-[color:var(--ink)]"
-                    : "bg-white text-[color:var(--ink-mid)] border-[color:var(--line)] hover:border-[color:var(--ink)]"
+                    ? "bg-[color:var(--ink)] text-[color:var(--paper)] border-[color:var(--ink)]"
+                    : "bg-[color:var(--card)] text-[color:var(--ink-mid)] border-[color:var(--line)] hover:border-[color:var(--ink)]"
                 }`}
               >
                 {c.label}
@@ -168,15 +120,17 @@ const LandingPage = () => {
 
         {visible.length === 0 ? (
           <div
-            className="border border-dashed border-[color:var(--line)] p-10 text-center bg-white"
+            className="border border-dashed border-[color:var(--line)] p-10 text-center bg-[color:var(--card)]"
             data-testid="empty-trending"
           >
             <Sparkles className="mx-auto text-[color:var(--ink-mute)]" size={28} />
             <div className="font-display font-bold text-2xl uppercase mt-3">
-              Archive is empty
+              {cat === "all" ? "Archive is empty" : "Nothing here yet"}
             </div>
             <p className="font-mono text-xs text-[color:var(--ink-mute)] mt-2 uppercase tracking-wider">
-              Be the first to compile something. Try the search above.
+              {cat === "all"
+                ? "Be the first to compile something. Try the search above."
+                : "No compiled entities in this category yet."}
             </p>
           </div>
         ) : (
@@ -185,7 +139,7 @@ const LandingPage = () => {
               <Link
                 key={e.slug}
                 to={`/entity/${e.slug}`}
-                className="group relative bg-white border border-[color:var(--line)] hover:border-[color:var(--ink)] p-5 transition-colors"
+                className="group relative bg-[color:var(--card)] border border-[color:var(--line)] hover:border-[color:var(--ink)] p-5 transition-colors"
                 data-testid="trending-entity-card"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -193,7 +147,7 @@ const LandingPage = () => {
                     <div className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)]">
                       Case #{String(idx + 1).padStart(3, "0")} · {e.entity_type}
                     </div>
-                    <div className="font-display font-black text-2xl uppercase leading-tight mt-1 truncate">
+                    <div className="font-display font-black text-2xl uppercase leading-tight mt-1 truncate text-[color:var(--ink)]">
                       {e.name}
                     </div>
                   </div>
@@ -205,7 +159,7 @@ const LandingPage = () => {
                     {e.larpability?.tier || "B"}
                   </div>
                 </div>
-                <p className="mt-3 text-sm text-[color:var(--ink-mid)] line-clamp-2 leading-snug">
+                <p className="mt-3 text-sm text-[color:var(--ink-mid)] clamp-2 leading-snug">
                   {e.one_line_context}
                 </p>
                 <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)]">
@@ -225,19 +179,21 @@ const LandingPage = () => {
       {queue.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="border-t border-dashed border-[color:var(--line)] pt-6">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)] mb-2">
-              // requested — not yet compiled
+            <div className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)] mb-2 flex items-center gap-2">
+              <Hourglass size={12} /> // requested — waiting on the analyst
             </div>
             <div className="flex flex-wrap gap-2" data-testid="queue-list">
               {queue.slice(0, 12).map((r) => (
                 <button
-                  key={r.slug}
-                  onClick={() => navigate(`/entity/${r.slug}?q=${encodeURIComponent(r.name)}`)}
-                  className="px-3 py-1.5 bg-[color:var(--ink)] text-white/70 font-mono text-xs hover:text-white transition-colors"
+                  key={r.key || r.slug}
+                  onClick={() => navigate(`/entity/${r.slug || slugify(r.name)}?q=${encodeURIComponent(r.name)}`)}
+                  className="px-3 py-1.5 bg-[color:var(--ink)] text-[color:var(--paper)]/80 font-mono text-xs hover:text-[color:var(--paper)] transition-colors flex items-center gap-2"
                   data-testid="queue-item"
                 >
-                  <span className="redacted inline-block h-3 w-16 mr-2 align-middle" />
-                  {r.name} · {r.votes || 1}
+                  <span className="redacted inline-block h-3 w-12 align-middle" />
+                  <span>{r.name}</span>
+                  <span className="opacity-60">·</span>
+                  <span>{r.votes || 1}</span>
                 </button>
               ))}
             </div>

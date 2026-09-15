@@ -16,7 +16,7 @@ const GeneratingModal = ({ query, phase }) => {
       role="status"
       aria-live="polite"
     >
-      <div className="w-full max-w-xl bg-white border-2 border-[color:var(--ink)] shadow-[6px_6px_0_0_rgba(15,23,42,1)] p-6">
+      <div className="w-full max-w-xl bg-[color:var(--card)] border-2 border-[color:var(--ink)] shadow-[var(--shadow-hard)] p-6">
         <div className="marching h-1 -mx-6 -mt-6 mb-6" />
         <div className="flex items-center gap-3">
           <Loader2 className="animate-spin text-[color:var(--stamp)]" size={20} />

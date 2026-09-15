@@ -1,35 +1,27 @@
-import { Link, useNavigate } from "react-router-dom";
-import { Radio, Search } from "lucide-react";
-import { useState } from "react";
-import { slugify } from "@/lib/api";
+import { Link } from "react-router-dom";
+import { Radio, Moon, Sun } from "lucide-react";
+import SearchBar from "@/components/SearchBar";
+import { useTheme } from "@/lib/ThemeContext";
 
 const SiteFrame = ({ children }) => {
-  const navigate = useNavigate();
-  const [q, setQ] = useState("");
-
-  const submit = (e) => {
-    e.preventDefault();
-    const v = q.trim();
-    if (!v) return;
-    navigate(`/entity/${slugify(v)}?q=${encodeURIComponent(v)}`);
-  };
+  const { theme, toggle } = useTheme();
 
   return (
     <div className="min-h-screen flex flex-col">
       <header
-        className="border-b border-[color:var(--line)] bg-[color:var(--paper-tint)]/80 backdrop-blur sticky top-0 z-40"
+        className="border-b border-[color:var(--line)] bg-[color:var(--paper-tint)]/85 backdrop-blur sticky top-0 z-40"
         data-testid="site-header"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-4 justify-between">
           <Link
             to="/"
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-2 group shrink-0"
             data-testid="site-logo"
           >
             <span className="w-7 h-7 border-2 border-[color:var(--ink)] flex items-center justify-center bg-[color:var(--stamp)] text-white">
               <Radio size={14} strokeWidth={2.5} />
             </span>
-            <span className="font-display font-black text-xl tracking-tight leading-none">
+            <span className="font-display font-black text-xl tracking-tight leading-none text-[color:var(--ink)]">
               LEARN<span className="text-[color:var(--stamp)]">TO</span>LARP
               <span className="font-mono text-[9px] align-top text-[color:var(--ink-mute)] ml-1">
                 .com
@@ -37,30 +29,18 @@ const SiteFrame = ({ children }) => {
             </span>
           </Link>
 
-          <form
-            onSubmit={submit}
-            className="hidden md:flex items-center gap-2 flex-1 max-w-md"
-            data-testid="header-search-form"
-          >
-            <div className="relative flex-1">
-              <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--ink-mute)]"
-              />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="quick lookup…"
-                className="w-full pl-8 pr-3 py-1.5 bg-white border border-[color:var(--line)] text-sm font-mono focus:border-[color:var(--ink)] focus:outline-none"
-                data-testid="header-search-input"
-              />
-            </div>
-          </form>
-
-          <div className="hidden sm:flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)]">
-            <span className="pulse-dot" />
-            <span>live compile</span>
+          <div className="hidden md:block flex-1 max-w-md">
+            <SearchBar size="sm" testIdPrefix="header" />
           </div>
+
+          <button
+            onClick={toggle}
+            aria-label="Toggle theme"
+            data-testid="theme-toggle"
+            className="w-9 h-9 flex items-center justify-center border border-[color:var(--line)] bg-[color:var(--card)] hover:border-[color:var(--ink)] transition-colors"
+          >
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
         </div>
       </header>
 

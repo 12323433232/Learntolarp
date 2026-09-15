@@ -32,7 +32,7 @@ const LatestNews = ({ items = [], quietNote }) => {
           {items.map((n, i) => (
             <li
               key={i}
-              className="grid grid-cols-[auto_1fr_auto] items-baseline gap-4 bg-white border border-[color:var(--line)] px-4 py-3"
+              className="grid grid-cols-[auto_1fr_auto] items-baseline gap-4 bg-[color:var(--card)] border border-[color:var(--line)] px-4 py-3"
               data-testid="news-item"
             >
               <span className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--stamp)]">

@@ -42,7 +42,7 @@ const QuotesSection = ({ quotes = [], name }) => {
         {quotes.map((q, i) => (
           <article
             key={i}
-            className="grid grid-cols-[auto_1fr] gap-4 bg-white border-l-4 border-[color:var(--ink)] pl-4 pr-5 py-4"
+            className="grid grid-cols-[auto_1fr] gap-4 bg-[color:var(--card)] border-l-4 border-[color:var(--ink)] pl-4 pr-5 py-4"
             data-testid="quote-item"
           >
             <div className="flex flex-col items-center gap-2 pt-1">

@@ -5,7 +5,7 @@ const PerceptionGauge = ({ perception = {} }) => {
   const criticsSay = perception.critics_say || [];
 
   return (
-    <section data-testid="perception-section" className="bg-white border border-[color:var(--line)] p-5">
+    <section data-testid="perception-section" className="bg-[color:var(--card)] border border-[color:var(--line)] p-5">
       <div className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)] mb-3">
         public perception
       </div>

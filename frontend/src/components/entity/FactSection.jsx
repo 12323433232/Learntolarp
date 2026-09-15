@@ -9,7 +9,7 @@ const FactSection = ({ items = [] }) => {
           <div className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)]">
             [ file 02 ]
           </div>
-          <h2 className="font-display font-black text-3xl md:text-4xl uppercase tracking-tight">
+          <h2 className="font-display font-black text-3xl md:text-4xl uppercase tracking-tight text-[color:var(--ink)]">
             Know this — <span className="text-[color:var(--ink-mid)]">fact</span>
           </h2>
         </div>
@@ -18,7 +18,7 @@ const FactSection = ({ items = [] }) => {
         </span>
       </header>
 
-      <div className="bg-white border border-[color:var(--ink)]">
+      <div className="bg-[color:var(--card)] border border-[color:var(--ink)]">
         {items.map((f, i) => (
           <div
             key={i}

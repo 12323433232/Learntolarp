@@ -1,10 +1,10 @@
 import { Download, Flame } from "lucide-react";
 
 const TIER_STYLES = {
-  S: { bg: "bg-[color:var(--stamp-bg)]", text: "text-[color:var(--stamp)]", border: "border-[color:var(--stamp)]", label: "S-TIER" },
-  A: { bg: "bg-[color:var(--indigo-bg)]", text: "text-[color:var(--indigo)]", border: "border-[color:var(--indigo)]", label: "A-TIER" },
-  B: { bg: "bg-[color:var(--emerald-bg)]", text: "text-[color:var(--emerald)]", border: "border-[color:var(--emerald)]", label: "B-TIER" },
-  C: { bg: "bg-[color:var(--amber-bg)]", text: "text-[color:var(--amber)]", border: "border-[color:var(--amber)]", label: "C-TIER" },
+  S: { text: "text-[color:var(--stamp)]", border: "border-[color:var(--stamp)]", label: "S-TIER" },
+  A: { text: "text-[color:var(--indigo)]", border: "border-[color:var(--indigo)]", label: "A-TIER" },
+  B: { text: "text-[color:var(--emerald)]", border: "border-[color:var(--emerald)]", label: "B-TIER" },
+  C: { text: "text-[color:var(--amber)]", border: "border-[color:var(--amber)]", label: "C-TIER" },
 };
 
 const DIFF_COPY = {
@@ -21,10 +21,9 @@ const LarpabilityHero = ({ data, onExport }) => {
 
   return (
     <section
-      className="relative bg-white border-2 border-[color:var(--ink)] p-6 md:p-10 paper-grain"
+      className="relative bg-[color:var(--card)] border-2 border-[color:var(--ink)] p-6 md:p-10 paper-grain"
       data-testid="entity-hero"
     >
-      {/* Top metadata strip */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)] pb-4 border-b border-dashed border-[color:var(--line)]">
         <span>Case #{data.slug.slice(0, 8).toUpperCase()}</span>
         <span>Type // <span className="text-[color:var(--ink)]">{data.entity_type}</span></span>
@@ -43,12 +42,12 @@ const LarpabilityHero = ({ data, onExport }) => {
             [ SUBJECT ]
           </div>
           <h1
-            className="font-display font-black text-5xl sm:text-6xl md:text-7xl uppercase leading-[0.9] tracking-tight"
+            className="font-display font-black text-5xl sm:text-6xl md:text-7xl uppercase leading-[0.9] tracking-tight text-[color:var(--ink)]"
             data-testid="entity-title"
           >
             {data.name}
           </h1>
-          <div className="mt-3 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest px-2 py-1 border border-[color:var(--line)] bg-[color:var(--paper-tint)]" data-testid="entity-type-badge">
+          <div className="mt-3 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest px-2 py-1 border border-[color:var(--line)] bg-[color:var(--paper-tint)] text-[color:var(--ink)]" data-testid="entity-type-badge">
             <span className="w-1.5 h-1.5 bg-[color:var(--stamp)]" />
             {data.entity_type}
           </div>
@@ -59,14 +58,13 @@ const LarpabilityHero = ({ data, onExport }) => {
           <button
             onClick={onExport}
             data-testid="export-cheat-sheet-btn"
-            className="mt-6 inline-flex items-center gap-2 px-5 py-3 bg-[color:var(--ink)] text-white font-display font-bold uppercase tracking-wide hover:bg-[color:var(--stamp)] transition-colors"
+            className="mt-6 inline-flex items-center gap-2 px-5 py-3 bg-[color:var(--ink)] text-[color:var(--paper)] font-display font-bold uppercase tracking-wide hover:bg-[color:var(--stamp)] transition-colors"
           >
             <Download size={16} strokeWidth={2.5} />
             Export cheat sheet
           </button>
         </div>
 
-        {/* Score stamp */}
         <div className="flex flex-col items-center md:items-end" data-testid="larpability-score-badge">
           <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-[color:var(--ink-mute)] mb-2">
             larpability grade

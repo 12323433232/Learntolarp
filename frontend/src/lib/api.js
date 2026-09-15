@@ -8,8 +8,8 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-export const generateEntity = (query) =>
-  api.post("/entities/generate", { query }).then((r) => r.data);
+export const generateEntity = (query, first_larped_by) =>
+  api.post("/entities/generate", { query, first_larped_by }).then((r) => r.data);
 
 export const fetchEntity = (slug) =>
   api.get(`/entities/${slug}`).then((r) => r.data);
@@ -21,6 +21,9 @@ export const queueEntity = (name, slug) =>
   api.post("/entities/queue", { name, slug }).then((r) => r.data);
 
 export const fetchQueue = () => api.get("/queue").then((r) => r.data);
+
+export const searchLive = (q) =>
+  api.get(`/entities/search/live?q=${encodeURIComponent(q)}`).then((r) => r.data);
 
 export const slugify = (s) =>
   s

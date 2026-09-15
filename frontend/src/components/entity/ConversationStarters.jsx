@@ -79,7 +79,7 @@ const ConversationStarters = ({ starters = {} }) => {
                     </span>
                     <button
                       onClick={() => copy(l)}
-                      className="shrink-0 p-1.5 hover:bg-white transition-colors"
+                      className="shrink-0 p-1.5 hover:bg-[color:var(--card)] transition-colors"
                       aria-label="Copy"
                       data-testid="copy-starter-btn"
                     >

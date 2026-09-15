@@ -105,7 +105,7 @@ const CultureSection = ({ culture = {} }) => {
 
       {/* Dangerous territory */}
       {dangerous_territory && (
-        <div className="mt-6 relative border-2 border-[color:var(--stamp)] bg-white" data-testid="culture-danger">
+        <div className="mt-6 relative border-2 border-[color:var(--stamp)] bg-[color:var(--card)]" data-testid="culture-danger">
           <div className="absolute -top-2.5 left-4 bg-[color:var(--stamp)] text-white font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 flex items-center gap-1">
             <AlertTriangle size={11} strokeWidth={2.5} /> dangerous territory
           </div>

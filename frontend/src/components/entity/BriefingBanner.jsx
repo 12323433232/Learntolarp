@@ -1,10 +1,7 @@
 const BriefingBanner = ({ lines = [] }) => {
   if (!lines.length) return null;
   return (
-    <section
-      className="relative bg-[color:var(--stamp-bg)] border-l-[6px] border-[color:var(--stamp)] pl-6 pr-6 py-5"
-      data-testid="briefing-tldr-card"
-    >
+    <section data-testid="briefing-tldr-card" className="relative bg-[color:var(--stamp-bg)] border-l-[6px] border-[color:var(--stamp)] pl-6 pr-6 py-5">
       <div className="font-mono text-[10px] uppercase tracking-widest text-[color:var(--stamp)] mb-2">
         5-second briefing // TL;DR
       </div>
