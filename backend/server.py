@@ -5,6 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import re
 import json
+import random
 import logging
 import uuid
 import httpx
@@ -12,7 +13,7 @@ import unicodedata
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
@@ -353,6 +354,38 @@ async def is_approved(slug: str) -> bool:
     return doc is not None
 
 
+# Basic handle blocklist (obvious slurs / abuse-adjacent tokens).
+# Not exhaustive on purpose — falls back to 'Anonymous' after too many bad attempts.
+HANDLE_BLOCKLIST = {
+    "admin", "root", "null", "undefined", "system", "moderator", "learntolarp",
+    "nigger", "nigga", "faggot", "retard", "tranny", "kike", "chink", "spic",
+    "cunt", "rape", "rapist", "nazi", "hitler", "kys", "kms",
+}
+
+
+def sanitize_handle(raw: Optional[str]) -> Optional[str]:
+    """Return a cleaned handle or None if it should be rejected."""
+    if not raw:
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+    # allow letters, numbers, dashes and underscores; trim length
+    s = re.sub(r"[^\w\-]", "", s)[:24]
+    if not s or len(s) < 2:
+        return None
+    lower = s.lower()
+    for bad in HANDLE_BLOCKLIST:
+        if bad in lower:
+            return None
+    return s
+
+
+async def record_hit(slug: str):
+    """Log a page hit for velocity-based trending (last 7 days)."""
+    await db.hits.insert_one({"slug": slug, "ts": now_iso()})
+
+
 async def register_aliases(canonical_slug: str, query: str, canonical_name: str):
     keys = set(variant_keys(query)) | set(variant_keys(canonical_name)) | set(variant_keys(canonical_slug))
     for k in keys:
@@ -442,6 +475,7 @@ async def entity_generate(req: GenerateRequest):
         await db.entities.update_one(
             {"slug": cached["slug"]}, {"$inc": {"infiltration_count": 1}}
         )
+        await record_hit(cached["slug"])
         cached["infiltration_count"] = cached.get("infiltration_count", 1) + 1
         return CaseFile(**cached).model_dump()
 
@@ -472,7 +506,8 @@ async def entity_generate(req: GenerateRequest):
         }
 
     # generate a real case file
-    case = await compile_case_file(query, req.first_larped_by)
+    handle = sanitize_handle(req.first_larped_by)
+    case = await compile_case_file(query, handle)
     doc = case.model_dump()
 
     # if we accidentally collide with an existing slug (LLM canonicalized to something we have), serve that
@@ -483,10 +518,12 @@ async def entity_generate(req: GenerateRequest):
         )
         existing["infiltration_count"] = existing.get("infiltration_count", 1) + 1
         await register_aliases(existing["slug"], query, existing["name"])
+        await record_hit(existing["slug"])
         return CaseFile(**existing).model_dump()
 
     await db.entities.insert_one(doc)
     await register_aliases(doc["slug"], query, doc["name"])
+    await record_hit(doc["slug"])
     # promote approved entry to full alias (persist canonical_slug for future lookups)
     if approved_hit and approved_hit.get("slug") != doc["slug"]:
         await db.approved.update_many(
@@ -501,6 +538,7 @@ async def entity_generate(req: GenerateRequest):
 async def entity_get(slug: str):
     doc = await db.entities.find_one({"slug": slug}, {"_id": 0})
     if doc:
+        await record_hit(doc["slug"])
         return CaseFile(**doc).model_dump()
     # alias fallback
     for k in variant_keys(slug):
@@ -508,15 +546,54 @@ async def entity_get(slug: str):
         if alias:
             doc = await db.entities.find_one({"slug": alias["canonical_slug"]}, {"_id": 0})
             if doc:
+                await record_hit(doc["slug"])
                 return CaseFile(**doc).model_dump()
     raise HTTPException(404, "Case file not compiled yet")
 
 
 @api_router.get("/entities")
-async def entity_list(limit: int = 12, sort: str = "trending"):
-    sort_field = "infiltration_count" if sort == "trending" else "created_at"
-    cursor = db.entities.find({}, {"_id": 0}).sort(sort_field, -1).limit(limit)
-    items = await cursor.to_list(limit)
+async def entity_list(limit: int = 12, sort: str = "trending", window_days: int = 7):
+    """
+    sort=trending: rank by hits in the last `window_days` (velocity)
+    sort=recent:   most recently compiled
+    sort=lifetime: total infiltration_count
+    """
+    items: List[dict] = []
+
+    if sort == "recent":
+        cursor = db.entities.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+        items = await cursor.to_list(limit)
+    elif sort == "lifetime":
+        cursor = db.entities.find({}, {"_id": 0}).sort("infiltration_count", -1).limit(limit)
+        items = await cursor.to_list(limit)
+    else:  # trending — velocity
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat()
+        pipeline = [
+            {"$match": {"ts": {"$gte": cutoff}}},
+            {"$group": {"_id": "$slug", "hits": {"$sum": 1}}},
+            {"$sort": {"hits": -1}},
+            {"$limit": limit},
+        ]
+        agg = await db.hits.aggregate(pipeline).to_list(limit)
+        slugs = [a["_id"] for a in agg]
+        hits_by_slug = {a["_id"]: a["hits"] for a in agg}
+        if slugs:
+            ents = await db.entities.find({"slug": {"$in": slugs}}, {"_id": 0}).to_list(limit)
+            ents_by_slug = {e["slug"]: e for e in ents}
+            items = [ents_by_slug[s] for s in slugs if s in ents_by_slug]
+            for i in items:
+                i["velocity"] = hits_by_slug.get(i["slug"], 0)
+        # If we don't have enough velocity data yet, pad with lifetime top
+        if len(items) < limit:
+            pad_needed = limit - len(items)
+            already = {i["slug"] for i in items}
+            pad_cursor = (
+                db.entities.find({"slug": {"$nin": list(already)}}, {"_id": 0})
+                .sort("infiltration_count", -1)
+                .limit(pad_needed)
+            )
+            items.extend(await pad_cursor.to_list(pad_needed))
+
     return {
         "items": [
             {
@@ -526,6 +603,7 @@ async def entity_list(limit: int = 12, sort: str = "trending"):
                 "one_line_context": i.get("one_line_context", ""),
                 "larpability": i.get("larpability", {"tier": "B"}),
                 "infiltration_count": i.get("infiltration_count", 1),
+                "velocity": i.get("velocity", 0),
                 "trending": i.get("trending", False),
             }
             for i in items
@@ -618,6 +696,241 @@ async def queue_list(limit: int = 20):
     cursor = db.queue.find({}, {"_id": 0}).sort("votes", -1).limit(limit)
     items = await cursor.to_list(limit)
     return {"items": items}
+
+
+# ---------- Sniff The Bot ----------
+ARCHETYPES = [
+    ("casual_fan", "Casual Fan", "knows the hits, casual about it, no strong takes"),
+    ("superfan", "Superfan", "knows everything, deep cuts, over-the-top enthusiasm, quotes trivia"),
+    ("new_fan", "Brand-New Fan", "just discovered it, over-excited, mixes up basic facts"),
+    ("ragebaiter", "Ragebaiter", "always negative, calls it overrated, looking for a fight"),
+    ("fake_fan", "Fake Fan", "pretends to know, uses generic phrases, avoids specifics, hedges a lot"),
+    ("veteran", "Longtime Veteran", "been there since day one, references old stuff, name-drops eras/lore"),
+]
+
+SNIFF_QUESTIONS = [
+    "What got you into them?",
+    "What's your favorite thing they've done?",
+    "Thoughts on their most popular work?",
+    "How would you describe the fandom?",
+]
+
+SNIFF_SYSTEM = """You are writing dialogue for a minigame where the player guesses which fan-archetype is talking about a subject. Each archetype answers 4 shared questions.
+
+STRICT RULES:
+- Output ONLY valid JSON. No preamble.
+- Each answer is 1-2 sentences, sounds like a real teenager in a Discord chat about this specific subject.
+- Answers must be DISTINCT per archetype — the point is that a player can tell which is which from tone and specificity.
+- Never break character. Never mention "archetype" or the game itself in the answer.
+- The Fake Fan should use vague hedges ("yeah I've been into them for a while", "the vibes are great") and avoid specifics.
+- The Superfan should drop names, years, obscure references specific to the subject.
+- The Ragebaiter is negative but recognisably informed.
+"""
+
+
+async def compile_sniff_bot(entity_name: str) -> dict:
+    arche_json = ",\n    ".join(
+        f'"{k}": {{"label": "{label}", "answers": ["...", "...", "...", "..."]}}'
+        for k, label, _ in ARCHETYPES
+    )
+    template = (
+        f'{{\n  "questions": {json.dumps(SNIFF_QUESTIONS)},\n  "archetypes": {{\n    {arche_json}\n  }}\n}}'
+    )
+    prompt = (
+        f'Subject: "{entity_name}".\n\n'
+        f"For each of these archetypes:\n"
+        + "\n".join(f"- {k}: {label} — {desc}" for k, label, desc in ARCHETYPES)
+        + f"\n\nAnswer these {len(SNIFF_QUESTIONS)} questions in order, in the archetype's voice:\n"
+        + "\n".join(f"  Q{i+1}: {q}" for i, q in enumerate(SNIFF_QUESTIONS))
+        + f"\n\nReturn EXACTLY this JSON shape (fill in the answer arrays with 4 strings each):\n{template}\n\nJSON only."
+    )
+
+    if LLM_PROVIDER == "openrouter":
+        if not OPENROUTER_API_KEY:
+            raise HTTPException(500, "OPENROUTER_API_KEY not set")
+        async with httpx.AsyncClient(timeout=90.0) as c:
+            r = await c.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+                json={
+                    "model": LLM_MODEL,
+                    "messages": [
+                        {"role": "system", "content": SNIFF_SYSTEM},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.7,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+        if r.status_code != 200:
+            raise HTTPException(502, "sniff compile failed")
+        raw = r.json()["choices"][0]["message"]["content"]
+    else:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"sniff-{uuid.uuid4()}",
+            system_message=SNIFF_SYSTEM,
+        ).with_model(LLM_PROVIDER, LLM_MODEL)
+        resp = await chat.send_message(UserMessage(text=prompt))
+        raw = resp if isinstance(resp, str) else str(resp)
+
+    return _extract_json(raw)
+
+
+@api_router.get("/entities/{slug}/sniff")
+async def entity_sniff(slug: str):
+    ent = await db.entities.find_one({"slug": slug}, {"_id": 0})
+    if not ent:
+        raise HTTPException(404, "Case file not compiled yet")
+    existing = await db.sniff.find_one({"slug": slug}, {"_id": 0})
+    if existing:
+        return existing
+    data = await compile_sniff_bot(ent["name"])
+    doc = {
+        "slug": slug,
+        "name": ent["name"],
+        "questions": data.get("questions", SNIFF_QUESTIONS),
+        "archetypes": data.get("archetypes", {}),
+        "created_at": now_iso(),
+    }
+    await db.sniff.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+# ---------- LARP Test ----------
+QUIZ_SYSTEM = """You are writing scenario-based multiple-choice questions for an infiltration test. The player is pretending to be a fan of the subject; the questions test whether they can hold their own in real conversations.
+
+STRICT RULES:
+- Output ONLY valid JSON. No preamble.
+- Scenarios are conversational situations, NOT factual trivia. ("You're at a party and someone says X. You:")
+- 4 options per question, exactly one is the 'convincing' one.
+- Include a 1-sentence 'why' for the correct answer.
+- Questions escalate in difficulty from easy to hard.
+- Wrong answers should be plausible-sounding traps, not obvious jokes.
+"""
+
+
+async def compile_quiz(entity_name: str) -> List[dict]:
+    prompt = (
+        f'Subject: "{entity_name}". Write 10 scenario-based multiple-choice questions for an infiltration test.\n\n'
+        'Return EXACTLY this JSON shape:\n'
+        '{"questions": [\n'
+        '  {"scenario": "Situation description ending in a prompt", "options": ["A", "B", "C", "D"], "correct_index": 0-3, "why": "one sentence"}\n'
+        ']}\n\nExactly 10 items. JSON only.'
+    )
+    if LLM_PROVIDER == "openrouter":
+        if not OPENROUTER_API_KEY:
+            raise HTTPException(500, "OPENROUTER_API_KEY not set")
+        async with httpx.AsyncClient(timeout=90.0) as c:
+            r = await c.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+                json={
+                    "model": LLM_MODEL,
+                    "messages": [
+                        {"role": "system", "content": QUIZ_SYSTEM},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.6,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+        if r.status_code != 200:
+            raise HTTPException(502, "quiz compile failed")
+        raw = r.json()["choices"][0]["message"]["content"]
+    else:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"quiz-{uuid.uuid4()}",
+            system_message=QUIZ_SYSTEM,
+        ).with_model(LLM_PROVIDER, LLM_MODEL)
+        resp = await chat.send_message(UserMessage(text=prompt))
+        raw = resp if isinstance(resp, str) else str(resp)
+
+    data = _extract_json(raw)
+    questions = data.get("questions", [])
+    # Shuffle options so the correct answer isn't always at the same index
+    for q in questions:
+        opts = q.get("options", [])
+        ci = q.get("correct_index", 0)
+        if not opts or ci is None or ci < 0 or ci >= len(opts):
+            continue
+        correct_value = opts[ci]
+        indices = list(range(len(opts)))
+        random.shuffle(indices)
+        q["options"] = [opts[i] for i in indices]
+        q["correct_index"] = q["options"].index(correct_value)
+    return questions
+
+
+class QuizAnswers(BaseModel):
+    answers: List[int]  # index selected per question
+
+
+@api_router.get("/entities/{slug}/quiz")
+async def entity_quiz(slug: str):
+    ent = await db.entities.find_one({"slug": slug}, {"_id": 0})
+    if not ent:
+        raise HTTPException(404, "Case file not compiled yet")
+    existing = await db.quizzes.find_one({"slug": slug}, {"_id": 0})
+    if existing:
+        # strip correct_index from client-visible payload
+        public_qs = [
+            {"scenario": q["scenario"], "options": q["options"]}
+            for q in existing.get("questions", [])
+        ]
+        return {"slug": slug, "name": ent["name"], "questions": public_qs}
+    questions = await compile_quiz(ent["name"])
+    doc = {
+        "slug": slug,
+        "name": ent["name"],
+        "questions": questions,
+        "created_at": now_iso(),
+    }
+    await db.quizzes.insert_one(doc)
+    public_qs = [{"scenario": q["scenario"], "options": q["options"]} for q in questions]
+    return {"slug": slug, "name": ent["name"], "questions": public_qs}
+
+
+def _verdict(score: int, total: int) -> dict:
+    pct = (score / total) * 100 if total else 0
+    if pct >= 80:
+        return {"tier": "convincing", "label": "CONVINCING", "note": "you'd survive the fandom Discord"}
+    if pct >= 50:
+        return {"tier": "suspicious", "label": "SUSPICIOUS", "note": "you're passing but they're watching"}
+    return {"tier": "caught", "label": "GETTING CAUGHT", "note": "the group chat has already screenshotted you"}
+
+
+@api_router.post("/entities/{slug}/quiz/grade")
+async def entity_quiz_grade(slug: str, payload: QuizAnswers):
+    quiz = await db.quizzes.find_one({"slug": slug}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(404, "Quiz not generated yet")
+    qs = quiz.get("questions", [])
+    n = min(len(qs), len(payload.answers))
+    per_q = []
+    score = 0
+    for i in range(n):
+        correct = qs[i].get("correct_index")
+        picked = payload.answers[i]
+        got = picked == correct
+        if got:
+            score += 1
+        per_q.append({
+            "picked": picked,
+            "correct_index": correct,
+            "why": qs[i].get("why", ""),
+            "got_right": got,
+        })
+    verdict = _verdict(score, len(qs))
+    return {
+        "slug": slug,
+        "score": score,
+        "total": len(qs),
+        "verdict": verdict,
+        "per_question": per_q,
+    }
 
 
 # ---------- Admin ----------

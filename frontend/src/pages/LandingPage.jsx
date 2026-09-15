@@ -163,7 +163,11 @@ const LandingPage = () => {
                   {e.one_line_context}
                 </p>
                 <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-[color:var(--ink-mute)]">
-                  <span>{e.infiltration_count} infiltrations</span>
+                  <span>
+                    {e.velocity > 0
+                      ? `${e.velocity} hits this week`
+                      : `${e.infiltration_count} infiltrations`}
+                  </span>
                   <ArrowUpRight
                     size={14}
                     className="text-[color:var(--ink-mute)] group-hover:text-[color:var(--stamp)] transition-colors"

@@ -1,13 +1,16 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Hourglass, Search as SearchIcon } from "lucide-react";
+import { Hourglass, Search as SearchIcon, Bot, Target } from "lucide-react";
 import {
   fetchEntity,
   generateEntity,
   queueEntity,
 } from "@/lib/api";
 import GeneratingModal from "@/components/GeneratingModal";
+import HandlePromptModal from "@/components/HandlePromptModal";
+import SniffBotGame from "@/components/SniffBotGame";
+import LarpQuizModal from "@/components/LarpQuizModal";
 import LarpabilityHero from "@/components/entity/LarpabilityHero";
 import BriefingBanner from "@/components/entity/BriefingBanner";
 import FactSection from "@/components/entity/FactSection";
@@ -25,9 +28,35 @@ const EntityPage = () => {
   const navigate = useNavigate();
   const querySeed = params.get("q") || slug;
 
+  // states: loading -> ready | asking_handle -> generating -> ready | queued | error
   const [state, setState] = useState({ status: "loading", data: null, queued: null, error: null });
   const [showExport, setShowExport] = useState(false);
+  const [showSniff, setShowSniff] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
   const triggeredRef = useRef(false);
+
+  const runGenerate = async (handle) => {
+    setState({ status: "generating", data: null, queued: null, error: null });
+    try {
+      const res = await generateEntity(querySeed, handle || undefined);
+      if (res?.status === "queued") {
+        setState({ status: "queued", data: null, queued: res, error: null });
+        return;
+      }
+      if (res.slug !== slug) {
+        navigate(`/entity/${res.slug}`, { replace: true });
+        return;
+      }
+      setState({ status: "ready", data: res, queued: null, error: null });
+    } catch (e) {
+      setState({
+        status: "error",
+        data: null,
+        queued: null,
+        error: e?.response?.data?.detail || "Compile failed. Try again in a sec.",
+      });
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -43,28 +72,8 @@ const EntityPage = () => {
         if (err?.response?.status === 404) {
           if (triggeredRef.current) return;
           triggeredRef.current = true;
-          setState({ status: "generating", data: null, queued: null, error: null });
-          try {
-            const res = await generateEntity(querySeed);
-            if (cancelled) return;
-            if (res?.status === "queued") {
-              setState({ status: "queued", data: null, queued: res, error: null });
-              return;
-            }
-            if (res.slug !== slug) {
-              navigate(`/entity/${res.slug}`, { replace: true });
-              return;
-            }
-            setState({ status: "ready", data: res, queued: null, error: null });
-          } catch (e) {
-            if (!cancelled)
-              setState({
-                status: "error",
-                data: null,
-                queued: null,
-                error: e?.response?.data?.detail || "Compile failed. Try again in a sec.",
-              });
-          }
+          // ask for handle first
+          setState({ status: "asking_handle", data: null, queued: null, error: null });
         } else {
           setState({
             status: "error",
@@ -88,6 +97,16 @@ const EntityPage = () => {
       toast.error("Couldn't queue that one.");
     }
   };
+
+  if (state.status === "asking_handle") {
+    return (
+      <HandlePromptModal
+        entityName={querySeed}
+        onSubmit={(h) => runGenerate(h)}
+        onSkip={() => runGenerate(null)}
+      />
+    );
+  }
 
   if (state.status === "loading" || state.status === "generating") {
     return <GeneratingModal query={querySeed} phase={state.status} />;
@@ -131,6 +150,54 @@ const EntityPage = () => {
       </nav>
 
       <LarpabilityHero data={d} onExport={() => setShowExport(true)} />
+
+      {/* Field kit CTAs */}
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="field-kit-ctas">
+        <button
+          onClick={() => setShowSniff(true)}
+          data-testid="open-sniff-bot-btn"
+          className="group text-left bg-[color:var(--card)] border-2 border-[color:var(--ink)] p-4 hover:bg-[color:var(--ink)] hover:text-[color:var(--paper)] transition-colors"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 border-2 border-current flex items-center justify-center shrink-0">
+              <Bot size={16} />
+            </div>
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest opacity-70">
+                minigame
+              </div>
+              <div className="font-display font-black text-xl uppercase leading-none mt-1">
+                Sniff the Bot
+              </div>
+              <div className="text-xs opacity-80 mt-1">
+                Guess which fan archetype a bot is impersonating.
+              </div>
+            </div>
+          </div>
+        </button>
+        <button
+          onClick={() => setShowQuiz(true)}
+          data-testid="open-quiz-btn"
+          className="group text-left bg-[color:var(--stamp)] text-white border-2 border-[color:var(--ink)] p-4 hover:bg-[color:var(--stamp-hover)] transition-colors"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 border-2 border-current flex items-center justify-center shrink-0">
+              <Target size={16} />
+            </div>
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest opacity-80">
+                infiltration test
+              </div>
+              <div className="font-display font-black text-xl uppercase leading-none mt-1">
+                Take the LARP Test
+              </div>
+              <div className="text-xs opacity-90 mt-1">
+                10 scenarios. Convincing / Suspicious / Getting Caught.
+              </div>
+            </div>
+          </div>
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-10">
         <div className="lg:col-span-8 space-y-10">
@@ -189,6 +256,12 @@ const EntityPage = () => {
 
       {showExport && (
         <ExportCheatSheet data={d} onClose={() => setShowExport(false)} />
+      )}
+      {showSniff && (
+        <SniffBotGame slug={d.slug} name={d.name} onClose={() => setShowSniff(false)} />
+      )}
+      {showQuiz && (
+        <LarpQuizModal slug={d.slug} name={d.name} onClose={() => setShowQuiz(false)} />
       )}
     </div>
   );
